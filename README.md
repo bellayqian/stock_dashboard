@@ -163,4 +163,4 @@ Bella Qian: Data Scaffolding + Interactive Visualization
 
 Suhwan Bong: Data Analysis + publishing the package on PyPI
 
-Yibin Xiong: Data Navigation
+Yibin Xiong: Data Navigation 
