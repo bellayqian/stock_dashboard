@@ -97,7 +97,7 @@ with open('build/index.html', 'w') as f:
                                 </div>
                                 <div class="col-md-6">
                                     <h4>PCA Biplot</h4>
-                                    <iframe src="visualizations/interactive_pca_biplot.html" width="100%" height="500px" frameborder="0"></iframe>
+                                    <iframe src="visualizations/interactive_pca_biplot.html" width="100%" height="500px" frameborder="0" allowfullscreen="true"></iframe>
                                 </div>
                             </div>
                         </div>
@@ -114,13 +114,15 @@ with open('build/index.html', 'w') as f:
                         </div>
                         <div class="card-body">
                             <div class="row">
-                                <div class="col-md-8">
+                                <div class="col-md-12 mb-4">
                                     <h4>Market Regimes Timeline</h4>
                                     <iframe src="visualizations/interactive_market_regimes.html" width="100%" height="600px" frameborder="0"></iframe>
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-12">
                                     <h4>Regime Characteristics</h4>
-                                    <img src="visualizations/regime_characteristics.png" class="img-fluid" alt="Regime Characteristics">
+                                    <div class="d-flex justify-content-center">
+                                        <img src="visualizations/regime_characteristics.png" style="max-width: 100%; height: auto;" alt="Regime Characteristics">
+                                    </div>
                                 </div>
                             </div>
                         </div>

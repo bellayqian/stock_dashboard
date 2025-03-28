@@ -1682,29 +1682,3 @@ def add_risk_heatmap_interpretation(fig, alpha=0.05):
     
     return fig
 
-    """
-    Create an enhanced interactive heatmap with interpretation for risk metrics using Plotly.
-    
-    Parameters:
-    ----------
-    returns : pandas.DataFrame
-        DataFrame of stock returns
-    tickers : list
-        List of ticker symbols
-    alpha : float, optional
-        Confidence level for VaR and CVaR
-        
-    Returns:
-    -------
-    plotly.graph_objects.Figure
-        Enhanced interactive risk metrics heatmap
-    """
-    from data_analysis_visualization import create_risk_metrics_heatmap
-    
-    # Create the standard risk metrics heatmap
-    fig = create_risk_metrics_heatmap(returns, tickers, alpha)
-    
-    # Add interpretation
-    fig = add_risk_heatmap_interpretation(fig, alpha)
-    
-    return fig
