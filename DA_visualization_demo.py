@@ -24,76 +24,82 @@ plt.style.use('ggplot')
 # Add function to get ticker information
 def get_ticker_info():
     """
-    Get mapping of ticker symbols to full company names.
+    Get mapping of ticker symbols to full company names based on stock_tickers.py.
     
     Returns:
     -------
     dict
         Dictionary mapping ticker symbols to company names
     """
-    # This is a placeholder - in a real implementation,
-    # this would load from a database or API
-    # For demonstration, we'll create a sample mapping
+    # Using categories from stock_tickers.py
     ticker_info = {
         # Technology
         'AAPL': 'Apple Inc.',
         'MSFT': 'Microsoft Corporation',
-        'AMZN': 'Amazon.com Inc.',
         'GOOGL': 'Alphabet Inc. (Google)',
         'META': 'Meta Platforms Inc.',
         'NVDA': 'NVIDIA Corporation',
-        'TSLA': 'Tesla Inc.',
+        'ADBE': 'Adobe Inc.',
+        'CSCO': 'Cisco Systems Inc.',
         'INTC': 'Intel Corporation',
-        'AMD': 'Advanced Micro Devices Inc.',
         'ORCL': 'Oracle Corporation',
         'CRM': 'Salesforce Inc.',
-        'CSCO': 'Cisco Systems Inc.',
         'IBM': 'International Business Machines',
-        'ADBE': 'Adobe Inc.',
-        'NFLX': 'Netflix Inc.',
         
-        # Financial
-        'JPM': 'JPMorgan Chase & Co.',
-        'BAC': 'Bank of America Corporation',
-        'WFC': 'Wells Fargo & Company',
-        'GS': 'Goldman Sachs Group Inc.',
-        'MS': 'Morgan Stanley',
-        'BLK': 'BlackRock Inc.',
-        'C': 'Citigroup Inc.',
-        'AXP': 'American Express Company',
-        'V': 'Visa Inc.',
-        'MA': 'Mastercard Incorporated',
+        # Consumer Discretionary
+        'AMZN': 'Amazon.com Inc.',
+        'TSLA': 'Tesla Inc.',
+        'HD': 'The Home Depot Inc.',
+        'MCD': 'McDonald\'s Corporation',
+        'NKE': 'Nike Inc.',
+        'SBUX': 'Starbucks Corporation',
+        'GM': 'General Motors Company',
         
         # Healthcare
         'JNJ': 'Johnson & Johnson',
-        'PFE': 'Pfizer Inc.',
-        'MRK': 'Merck & Co. Inc.',
         'UNH': 'UnitedHealth Group Inc.',
-        'ABBV': 'AbbVie Inc.',
-        'LLY': 'Eli Lilly and Company',
-        'BMY': 'Bristol-Myers Squibb Company',
-        'TMO': 'Thermo Fisher Scientific Inc.',
         'ABT': 'Abbott Laboratories',
-        'MDT': 'Medtronic plc',
+        'MRK': 'Merck & Co. Inc.',
+        'AMGN': 'Amgen Inc.',
+        'PFE': 'Pfizer Inc.',
+        'CVS': 'CVS Health Corporation',
         
-        # Consumer
-        'PG': 'Procter & Gamble Company',
+        # Financials
+        'BRK-B': 'Berkshire Hathaway Inc.',
+        'JPM': 'JPMorgan Chase & Co.',
+        'V': 'Visa Inc.',
+        'MA': 'Mastercard Inc.',
+        'PYPL': 'PayPal Holdings Inc.',
+        'GS': 'Goldman Sachs Group Inc.',
+        'MS': 'Morgan Stanley',
+        'WFC': 'Wells Fargo & Company',
+        
+        # Consumer Staples
+        'PG': 'Procter & Gamble Co.',
+        'WMT': 'Walmart Inc.',
         'KO': 'The Coca-Cola Company',
         'PEP': 'PepsiCo Inc.',
-        'WMT': 'Walmart Inc.',
-        'MCD': 'McDonald\'s Corporation',
-        'HD': 'The Home Depot Inc.',
-        'NKE': 'Nike Inc.',
-        'DIS': 'The Walt Disney Company',
-        'SBUX': 'Starbucks Corporation',
-        'COST': 'Costco Wholesale Corporation',
         
-        # Energy & Industrial
+        # Energy
         'XOM': 'Exxon Mobil Corporation',
         'CVX': 'Chevron Corporation',
-        'GE': 'General Electric Company',
+        
+        # Industrials
         'BA': 'The Boeing Company',
-        'CAT': 'Caterpillar Inc.'
+        'MMM': '3M Company',
+        'LMT': 'Lockheed Martin Corporation',
+        'UNP': 'Union Pacific Corporation',
+        'CAT': 'Caterpillar Inc.',
+        'RTX': 'Raytheon Technologies Corporation',
+        'GE': 'General Electric Company',
+        
+        # Communication Services
+        'NFLX': 'Netflix Inc.',
+        'T': 'AT&T Inc.',
+        'VZ': 'Verizon Communications Inc.',
+        
+        # Utilities
+        'NEE': 'NextEra Energy Inc.'
     }
     
     return ticker_info
@@ -113,6 +119,9 @@ def run_pca_analysis(returns_data, output_dir=None):
     
     # Get tickers
     tickers = returns_data.columns.tolist()
+    
+    # Get ticker info for full company names
+    tickers_info = get_ticker_info()
     
     # Perform PCA on the returns data
     principal_components, explained_variance_ratios, factor_loadings = perform_pca(returns_data)
@@ -141,22 +150,17 @@ def run_pca_analysis(returns_data, output_dir=None):
     # Create visualizations
     print("\nGenerating PCA visualizations...")
     
-    # 1. Generate the static PCA biplot for backwards compatibility
-    fig1 = plot_pca_biplot(principal_components, factor_loadings, tickers)
-    if output_dir:
-        fig1.savefig(os.path.join(output_dir, 'pca_biplot.png'))
-    
-    # 2. Create interactive PCA biplot (NEW)
-    fig_interactive_biplot = create_interactive_pca_biplot(principal_components, factor_loadings, tickers)
+    # 1. Create interactive PCA biplot with company names
+    fig_interactive_biplot = create_interactive_pca_biplot(principal_components, factor_loadings, tickers, tickers_info)
     if output_dir:
         fig_interactive_biplot.write_html(os.path.join(output_dir, 'interactive_pca_biplot.html'))
     
-    # 3. PCA clustering plot
+    # 2. PCA clustering plot - keep for compatibility but don't deploy in dashboard
     fig2 = plot_pca_clustering(principal_components, factor_loadings, tickers)
     if output_dir:
         fig2.savefig(os.path.join(output_dir, 'pca_clustering.png'))
 
-    # 4. Interactive PCA clustering plot
+    # 3. Interactive PCA clustering plot
     fig3 = create_pca_clustering_plot(principal_components, factor_loadings, tickers)
     if output_dir:
         fig3.write_html(os.path.join(output_dir, 'interactive_pca_clustering.html'))
@@ -236,6 +240,9 @@ def run_risk_metrics_analysis(returns_data, output_dir=None):
     # Get tickers
     tickers = returns_data.columns.tolist()
     
+    # Get ticker info for full company names
+    tickers_info = get_ticker_info()
+    
     # Create different portfolio weights
     n_assets = len(tickers)
     
@@ -268,11 +275,15 @@ def run_risk_metrics_analysis(returns_data, output_dir=None):
     
     # 1. Interactive risk metrics comparison
     fig1 = create_risk_metrics_comparison(returns_data, weights_list, labels)
+    # Add interpretation to the figure
+    fig1 = add_risk_metrics_interpretation(fig1)
     if output_dir:
         fig1.write_html(os.path.join(output_dir, 'interactive_risk_metrics_comparison.html'))
     
     # 2. Interactive risk metrics heatmap
     fig2 = create_risk_metrics_heatmap(returns_data, tickers)
+    # Add interpretation to the figure
+    fig2 = add_risk_heatmap_interpretation(fig2)
     if output_dir:
         fig2.write_html(os.path.join(output_dir, 'interactive_risk_metrics_heatmap.html'))
     
@@ -309,11 +320,6 @@ def run_network_analysis(returns_data, regimes=None, clusters=None, threshold=0.
     fig = create_enhanced_network(returns_data, tickers_info, regimes, clusters, threshold)
     if output_dir:
         fig.write_html(os.path.join(output_dir, 'interactive_network.html'))
-    
-    # Also create the original network visualization for backwards compatibility
-    original_fig = create_interactive_network(returns_data, threshold)
-    if output_dir:
-        original_fig.write_html(os.path.join(output_dir, 'interactive_network_original.html'))
     
     print("Network analysis complete.")
     return {}

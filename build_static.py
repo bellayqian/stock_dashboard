@@ -19,6 +19,7 @@ html_files = [
     'interactive_market_regimes.html',
     'interactive_network.html',
     'interactive_pca_clustering.html',
+    'interactive_pca_biplot.html',
     'interactive_risk_metrics_comparison.html',
     'interactive_risk_metrics_heatmap.html'
 ]
@@ -31,10 +32,8 @@ for html_file in html_files:
     else:
         print(f"Warning: {source_path} not found")
 
-# Copy PNG visualizations
+# Copy PNG visualizations (only regime_characteristics.png)
 png_files = [
-    'pca_biplot.png',
-    'pca_clustering.png',
     'regime_characteristics.png'
 ]
 
@@ -98,7 +97,7 @@ with open('build/index.html', 'w') as f:
                                 </div>
                                 <div class="col-md-6">
                                     <h4>PCA Biplot</h4>
-                                    <img src="visualizations/pca_biplot.png" class="img-fluid" alt="PCA Biplot">
+                                    <iframe src="visualizations/interactive_pca_biplot.html" width="100%" height="500px" frameborder="0"></iframe>
                                 </div>
                             </div>
                         </div>

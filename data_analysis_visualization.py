@@ -1159,6 +1159,239 @@ def create_interactive_network(returns, threshold=0.34):
     ----------
     returns : pandas.DataFrame
         DataFrame of stock returns
+    threshold : float, optional
+        Correlation threshold for network edges
+        
+    Returns:
+    -------
+    plotly.graph_objects.Figure
+        Interactive network visualization
+    """
+    from data_navigation import build_correlation_network
+    
+    # Build correlation network
+    G = build_correlation_network(returns, threshold)
+    
+    # Get positions using spring layout
+    pos = nx.spring_layout(G, k=0.5)
+    
+    # Create node trace
+    node_x = []
+    node_y = []
+    
+    for node in G.nodes():
+        x, y = pos[node]
+        node_x.append(x)
+        node_y.append(y)
+    
+    node_trace = go.Scatter(
+        x=node_x, y=node_y,
+        mode='markers+text',
+        text=list(G.nodes()),
+        textposition='top center',
+        marker=dict(
+            size=10,
+            color='blue',
+            line=dict(width=1, color='black')
+        ),
+        hoverinfo='text'
+    )
+    
+    # Create edge trace
+    edge_x = []
+    edge_y = []
+    edge_text = []
+    
+    for edge in G.edges():
+        x0, y0 = pos[edge[0]]
+        x1, y1 = pos[edge[1]]
+        
+        edge_x.extend([x0, x1, None])
+        edge_y.extend([y0, y1, None])
+        
+        weight = G.get_edge_data(edge[0], edge[1]).get('weight', 0)
+        edge_text.append(f"{edge[0]} - {edge[1]}: Correlation = {weight:.3f}")
+    
+    edge_trace = go.Scatter(
+        x=edge_x, y=edge_y,
+        mode='lines',
+        line=dict(width=1, color='gray'),
+        hoverinfo='text',
+        text=edge_text
+    )
+    
+    # Create figure
+    fig = go.Figure(data=[edge_trace, node_trace])
+    
+    # Update layout
+    fig.update_layout(
+        title=f'Stock Correlation Network (Corr > {threshold:.2f})',
+        showlegend=False,
+        hovermode='closest',
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        height=700,
+        width=700,
+        template='plotly_white'
+    )
+    
+    return fig
+
+def create_interactive_pca_biplot(principal_components, factor_loadings, tickers, tickers_info=None):
+    """
+    Create an interactive biplot showing both the principal components and factor loadings using Plotly.
+    
+    Parameters:
+    ----------
+    principal_components : array-like
+        Principal components from PCA
+    factor_loadings : array-like
+        Factor loadings from PCA
+    tickers : list
+        List of ticker symbols
+    tickers_info : dict, optional
+        Dictionary mapping ticker symbols to full company names
+        
+    Returns:
+    -------
+    plotly.graph_objects.Figure
+        Interactive PCA biplot
+    """
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+    import numpy as np
+    
+    # Use only the first two principal components
+    pc1 = principal_components[:, 0]
+    pc2 = principal_components[:, 1]
+    
+    # Scale the factor loadings for visualization
+    # Using a smaller scale factor to avoid large spread of vectors
+    scale = np.abs(principal_components).max() / np.abs(factor_loadings).max() * 1.2
+    
+    # Create the figure
+    fig = go.Figure()
+    
+    # Add scatter plot for principal components (reducing point size)
+    fig.add_trace(
+        go.Scatter(
+            x=pc1, 
+            y=pc2,
+            mode='markers',
+            marker=dict(
+                size=5,  # Smaller points
+                color='blue',
+                opacity=0.3  # More transparency
+            ),
+            name='Data Points',
+            hoverinfo='skip'  # Hide hover info for data points to reduce clutter
+        )
+    )
+    
+    # Add vectors for factor loadings with full company names
+    for i, ticker in enumerate(tickers):
+        # Get full company name if available
+        if tickers_info and ticker in tickers_info:
+            company_name = tickers_info[ticker]
+            hover_text = f"{ticker}: {company_name}"
+        else:
+            hover_text = ticker
+            
+        fig.add_trace(
+            go.Scatter(
+                x=[0, factor_loadings[0, i] * scale],
+                y=[0, factor_loadings[1, i] * scale],
+                mode='lines+text',
+                line=dict(color='red', width=1.5),  # Thinner lines
+                text=['', ticker],
+                textposition='top center',
+                textfont=dict(size=12, color='darkred', family='Arial, sans-serif'),  # Larger, more visible text
+                name=ticker,
+                hovertext=['', hover_text],
+                hoverinfo='text'
+            )
+        )
+    
+    # Add a circle to represent correlations of 1
+    theta = np.linspace(0, 2*np.pi, 100)
+    x_circle = np.cos(theta)
+    y_circle = np.sin(theta)
+    
+    fig.add_trace(
+        go.Scatter(
+            x=x_circle,
+            y=y_circle,
+            mode='lines',
+            line=dict(color='gray', width=1, dash='dash'),
+            name='Unit Circle',
+            hoverinfo='skip'
+        )
+    )
+    
+    # Update layout
+    fig.update_layout(
+        title="PCA Biplot: Stock Relationships in Principal Component Space",
+        xaxis=dict(
+            title="Principal Component 1",
+            zeroline=True,
+            zerolinewidth=1,
+            zerolinecolor='black',
+            range=[-1.2, 1.2]  # Fixed range to ensure good visualization
+        ),
+        yaxis=dict(
+            title="Principal Component 2",
+            zeroline=True,
+            zerolinewidth=1,
+            zerolinecolor='black',
+            range=[-1.2, 1.2],  # Fixed range to ensure good visualization
+            scaleanchor="x",  # Make sure x and y have the same scale
+            scaleratio=1      # Ensure equal scaling
+        ),
+        showlegend=False,
+        height=700,
+        width=700,
+        template="plotly_white",
+        margin=dict(l=50, r=50, t=80, b=50),  # Adjust margins
+        annotations=[
+            dict(
+                text="Vectors represent stock positions in PC space.<br>Clustered stocks often move similarly.",
+                showarrow=False,
+                xref="paper", yref="paper",
+                x=0.01, y=0.99,
+                align="left",
+                bgcolor="rgba(255, 255, 255, 0.8)",
+                bordercolor="rgba(0, 0, 0, 0.5)",
+                borderwidth=1,
+                borderpad=4
+            )
+        ]
+    )
+    
+    # Add axis lines
+    fig.add_shape(
+        type="line",
+        x0=-scale*2, x1=scale*2,
+        y0=0, y1=0,
+        line=dict(color="black", width=1)
+    )
+    
+    fig.add_shape(
+        type="line", 
+        x0=0, x1=0,
+        y0=-scale*2, y1=scale*2,
+        line=dict(color="black", width=1)
+    )
+    
+    return fig
+
+def create_enhanced_network(returns, tickers_info, regimes=None, clusters=None, threshold=0.34):
+    """
+    Create an enhanced interactive network visualization with full company names and regime/cluster coloring.
+    
+    Parameters:
+    ----------
+    returns : pandas.DataFrame
+        DataFrame of stock returns
     tickers_info : dict
         Dictionary mapping ticker symbols to full company names
     regimes : array-like, optional
@@ -1181,13 +1414,14 @@ def create_interactive_network(returns, threshold=0.34):
     # Build correlation network
     G = build_correlation_network(returns, threshold)
     
-    # Get positions using spring layout
-    pos = nx.spring_layout(G, k=0.5, seed=42)
+    # Get positions using spring layout with more spreading
+    pos = nx.spring_layout(G, k=0.8, seed=42)
     
     # Create lists to hold node information
     node_x = []
     node_y = []
     node_text = []
+    node_hover = []
     node_colors = []
     color_by = 'default'
     
@@ -1197,7 +1431,9 @@ def create_interactive_network(returns, threshold=0.34):
         # Create a mapping from ticker to cluster
         ticker_to_cluster = {ticker: cluster for ticker, cluster in zip(returns.columns, clusters)}
         # Color palette for clusters
-        cluster_colors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52']
+        cluster_colors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A']
+        # Create text for legend
+        legend_text = "<br>".join([f"Cluster {i+1}: {cluster_colors[i]}" for i in range(min(len(cluster_colors), 3))])
     elif regimes is not None:
         color_by = 'regimes'
         # Calculate the most common regime for each stock
@@ -1211,7 +1447,9 @@ def create_interactive_network(returns, threshold=0.34):
             else:
                 ticker_regimes[ticker] = 0
         # Color palette for regimes
-        regime_colors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A']
+        regime_colors = ['#636EFA', '#EF553B', '#00CC96']
+        # Create text for legend
+        legend_text = "<br>".join([f"Regime {i+1}: {regime_colors[i]}" for i in range(min(len(regime_colors), 3))])
     
     for node in G.nodes():
         x, y = pos[node]
@@ -1221,17 +1459,26 @@ def create_interactive_network(returns, threshold=0.34):
         # Add full company name to hover text if available
         if node in tickers_info:
             full_name = tickers_info[node]
-            node_text.append(f"{node}: {full_name}")
+            node_hover.append(f"{node}: {full_name}")
+            # Use only the ticker as the node label
+            node_text.append(node)
         else:
+            node_hover.append(node)
             node_text.append(node)
             
         # Assign colors based on clusters or regimes
         if color_by == 'clusters':
             cluster = ticker_to_cluster.get(node, 0)
-            node_colors.append(cluster_colors[cluster % len(cluster_colors)])
+            cluster_id = cluster % len(cluster_colors)
+            node_colors.append(cluster_colors[cluster_id])
+            # Add cluster info to hover
+            node_hover[-1] += f"<br>Cluster: {cluster_id + 1}"
         elif color_by == 'regimes':
             regime = ticker_regimes.get(node, 0)
-            node_colors.append(regime_colors[regime % len(regime_colors)])
+            regime_id = regime % len(regime_colors)
+            node_colors.append(regime_colors[regime_id])
+            # Add regime info to hover
+            node_hover[-1] += f"<br>Regime: {regime_id + 1}"
         else:
             node_colors.append('#636EFA')  # Default color
     
@@ -1239,49 +1486,53 @@ def create_interactive_network(returns, threshold=0.34):
     node_trace = go.Scatter(
         x=node_x, y=node_y,
         mode='markers+text',
-        text=list(G.nodes()),
+        text=node_text,
         textposition='top center',
+        textfont=dict(size=11, color='black', family='Arial, sans-serif'),
         marker=dict(
-            size=15,
+            size=18,
             color=node_colors,
             line=dict(width=1, color='black')
         ),
-        hovertext=node_text,
+        hovertext=node_hover,
         hoverinfo='text'
     )
     
-    # Create edge trace
-    edge_x = []
-    edge_y = []
-    edge_text = []
+    # Create edge traces (one trace per edge to handle different widths)
+    edge_traces = []
     
     for edge in G.edges():
         x0, y0 = pos[edge[0]]
         x1, y1 = pos[edge[1]]
         
-        edge_x.extend([x0, x1, None])
-        edge_y.extend([y0, y1, None])
-        
         weight = G.get_edge_data(edge[0], edge[1]).get('weight', 0)
+        
+        # Scale edge width based on correlation strength
+        edge_width = abs(weight) * 3
+        
         # Add full company names to edge text if available
         name0 = tickers_info.get(edge[0], edge[0])
         name1 = tickers_info.get(edge[1], edge[1])
-        edge_text.append(f"{edge[0]} ({name0}) - {edge[1]} ({name1}): Correlation = {weight:.3f}")
+        edge_text = f"{edge[0]} ({name0}) - {edge[1]} ({name1})<br>Correlation: {weight:.3f}"
+        
+        # Create a separate trace for each edge
+        edge_trace = go.Scatter(
+            x=[x0, x1, None],
+            y=[y0, y1, None],
+            mode='lines',
+            line=dict(width=edge_width, color='rgba(128, 128, 128, 0.7)'),
+            hoverinfo='text',
+            hovertext=edge_text,
+            showlegend=False
+        )
+        
+        edge_traces.append(edge_trace)
     
-    edge_trace = go.Scatter(
-        x=edge_x, y=edge_y,
-        mode='lines',
-        line=dict(width=1, color='rgba(128, 128, 128, 0.7)'),
-        hoverinfo='text',
-        hovertext=edge_text,
-        text=edge_text
-    )
-    
-    # Create figure
-    fig = go.Figure(data=[edge_trace, node_trace])
+    # Create figure with all traces
+    fig = go.Figure(data=edge_traces + [node_trace])
     
     # Update layout
-    title_text = f'Stock Correlation Network (Corr > {threshold:.2f})'
+    title_text = f'Stock Correlation Network (Correlation > {threshold:.2f})'
     if color_by == 'clusters':
         title_text += ' - Colored by PCA Clusters'
     elif color_by == 'regimes':
@@ -1293,124 +1544,167 @@ def create_interactive_network(returns, threshold=0.34):
         hovermode='closest',
         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-        height=800,
-        width=800,
+        height=700,
+        width=900,
         template='plotly_white',
-        plot_bgcolor='rgba(0,0,0,0)'
+        plot_bgcolor='rgba(0,0,0,0)',
+        margin=dict(l=20, r=20, t=60, b=20),
+        # Add the legend as an annotation
+        annotations=[
+            dict(
+                text=f"<b>Legend:</b><br>{legend_text}" if color_by != 'default' else "",
+                x=0.02, y=0.02,
+                xref="paper", yref="paper",
+                showarrow=False,
+                align="left",
+                bgcolor="rgba(255, 255, 255, 0.8)",
+                bordercolor="rgba(0, 0, 0, 0.5)",
+                borderwidth=1,
+                borderpad=4
+            ),
+            dict(
+                text="<b>Interpretation:</b><br>" + 
+                     "• Stocks in the same cluster/regime tend to move together<br>" +
+                     "• Thicker lines indicate stronger correlations<br>" +
+                     "• Close nodes have similar price movements",
+                x=0.98, y=0.98,
+                xref="paper", yref="paper",
+                align="right",
+                showarrow=False,
+                bgcolor="rgba(255, 255, 255, 0.8)",
+                bordercolor="rgba(0, 0, 0, 0.5)",
+                borderwidth=1,
+                borderpad=4
+            )
+        ]
     )
     
     return fig
 
-def create_interactive_pca_biplot(principal_components, factor_loadings, tickers):
+def add_risk_metrics_interpretation(fig, alpha=0.05):
     """
-    Create an interactive biplot showing both the principal components and factor loadings using Plotly.
+    Add interpretative annotations to risk metrics visualization.
     
     Parameters:
     ----------
-    principal_components : array-like
-        Principal components from PCA
-    factor_loadings : array-like
-        Factor loadings from PCA
-    tickers : list
-        List of ticker symbols
+    fig : plotly.graph_objects.Figure
+        The risk metrics figure to annotate
+    alpha : float
+        The confidence level used for VaR and CVaR calculations
         
     Returns:
     -------
     plotly.graph_objects.Figure
-        Interactive PCA biplot
+        Annotated figure
     """
-    import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
-    import numpy as np
-    
-    # Use only the first two principal components
-    pc1 = principal_components[:, 0]
-    pc2 = principal_components[:, 1]
-    
-    # Scale the factor loadings for visualization
-    scale = np.abs(principal_components).max() / np.abs(factor_loadings).max() * 0.7
-    
-    # Create the figure
-    fig = go.Figure()
-    
-    # Add scatter plot for principal components
-    fig.add_trace(
-        go.Scatter(
-            x=pc1, 
-            y=pc2,
-            mode='markers',
-            marker=dict(
-                size=8,
-                color='blue',
-                opacity=0.5
-            ),
-            name='Data Points'
-        )
+    # Add interpretation annotation
+    fig.add_annotation(
+        x=0.98, y=0.02,
+        xref="paper", yref="paper",
+        text="<b>Risk Metrics Explained:</b><br>" +
+             f"• VaR ({alpha*100}%): Maximum expected loss with {alpha*100}% confidence<br>" +
+             f"• CVaR ({alpha*100}%): Average loss when VaR is exceeded<br>" +
+             "• Volatility: Standard deviation of returns<br>" +
+             "<br>Higher values indicate greater risk",
+        showarrow=False,
+        align="left",
+        bgcolor="rgba(255, 255, 255, 0.8)",
+        bordercolor="rgba(0, 0, 0, 0.5)",
+        borderwidth=1,
+        borderpad=4
     )
     
-    # Add vectors for factor loadings
-    for i, ticker in enumerate(tickers):
-        fig.add_trace(
-            go.Scatter(
-                x=[0, factor_loadings[0, i] * scale],
-                y=[0, factor_loadings[1, i] * scale],
-                mode='lines+text',
-                line=dict(color='red', width=2),
-                text=['', ticker],
-                textposition='top center',
-                name=ticker
-            )
-        )
-    
-    # Add a circle to represent correlations of 1
-    theta = np.linspace(0, 2*np.pi, 100)
-    x_circle = np.cos(theta)
-    y_circle = np.sin(theta)
-    
-    fig.add_trace(
-        go.Scatter(
-            x=x_circle,
-            y=y_circle,
-            mode='lines',
-            line=dict(color='gray', width=1, dash='dash'),
-            name='Unit Circle'
-        )
+    # Add another annotation explaining portfolio types
+    fig.add_annotation(
+        x=0.02, y=0.98,
+        xref="paper", yref="paper",
+        text="<b>Portfolio Types:</b><br>" +
+             "• Equal Weights: Same allocation to all stocks<br>" +
+             "• Random Weights: Random allocation<br>" +
+             "• Tech-Heavy: 80% allocation to tech stocks",
+        showarrow=False,
+        align="left",
+        bgcolor="rgba(255, 255, 255, 0.8)",
+        bordercolor="rgba(0, 0, 0, 0.5)",
+        borderwidth=1,
+        borderpad=4
     )
     
-    # Update layout
-    fig.update_layout(
-        title="PCA Biplot: Stocks and Principal Components",
-        xaxis=dict(
-            title="Principal Component 1",
-            zeroline=True,
-            zerolinewidth=1,
-            zerolinecolor='black'
-        ),
-        yaxis=dict(
-            title="Principal Component 2",
-            zeroline=True,
-            zerolinewidth=1,
-            zerolinecolor='black'
-        ),
-        showlegend=False,
-        height=800,
-        width=800,
-        template="plotly_white"
+    return fig
+
+def add_risk_heatmap_interpretation(fig, alpha=0.05):
+    """
+    Add interpretative annotations to risk metrics heatmap.
+    
+    Parameters:
+    ----------
+    fig : plotly.graph_objects.Figure
+        The risk metrics heatmap to annotate
+    alpha : float
+        The confidence level used for VaR and CVaR calculations
+        
+    Returns:
+    -------
+    plotly.graph_objects.Figure
+        Annotated heatmap
+    """
+    # Add interpretation annotation
+    fig.add_annotation(
+        x=0.01, y=0.01,
+        xref="paper", yref="paper",
+        text="<b>Heatmap Interpretation:</b><br>" +
+             "• Darker colors indicate higher risk<br>" +
+             "• Compare across stocks to identify<br>  high and low risk investments<br>" +
+             "• Use for portfolio diversification",
+        showarrow=False,
+        align="left",
+        bgcolor="rgba(255, 255, 255, 0.8)",
+        bordercolor="rgba(0, 0, 0, 0.5)",
+        borderwidth=1,
+        borderpad=4
     )
     
-    # Add axis lines
-    fig.add_shape(
-        type="line",
-        x0=-scale, x1=scale,
-        y0=0, y1=0,
-        line=dict(color="black", width=1)
+    # Add an explanation of the metrics
+    fig.add_annotation(
+        x=0.99, y=0.99,
+        xref="paper", yref="paper",
+        text="<b>Risk Metrics:</b><br>" +
+             f"• VaR: Value at Risk ({alpha*100}% confidence)<br>" +
+             f"• CVaR: Conditional VaR (tail risk)<br>" +
+             "• Volatility: Return standard deviation",
+        showarrow=False,
+        align="left",
+        bgcolor="rgba(255, 255, 255, 0.8)",
+        bordercolor="rgba(0, 0, 0, 0.5)",
+        borderwidth=1,
+        borderpad=4
     )
     
-    fig.add_shape(
-        type="line", 
-        x0=0, x1=0,
-        y0=-scale, y1=scale,
-        line=dict(color="black", width=1)
-    )
+    return fig
+
+    """
+    Create an enhanced interactive heatmap with interpretation for risk metrics using Plotly.
+    
+    Parameters:
+    ----------
+    returns : pandas.DataFrame
+        DataFrame of stock returns
+    tickers : list
+        List of ticker symbols
+    alpha : float, optional
+        Confidence level for VaR and CVaR
+        
+    Returns:
+    -------
+    plotly.graph_objects.Figure
+        Enhanced interactive risk metrics heatmap
+    """
+    from data_analysis_visualization import create_risk_metrics_heatmap
+    
+    # Create the standard risk metrics heatmap
+    fig = create_risk_metrics_heatmap(returns, tickers, alpha)
+    
+    # Add interpretation
+    fig = add_risk_heatmap_interpretation(fig, alpha)
     
     return fig
