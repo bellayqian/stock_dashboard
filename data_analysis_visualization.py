@@ -3,8 +3,9 @@ Data Analysis Visualization Module
 =================================
 
 Functions to visualize results from data analysis operations including:
-- PCA (Principal Component Analysis)
-- Market Regime Detection
+- Full company names in network visualization
+- Interactive PCA (Principal Component Analysis) biplot
+- Market regime and cluster coloring in network
 - Risk Metrics
 """
 
@@ -1158,41 +1159,94 @@ def create_interactive_network(returns, threshold=0.34):
     ----------
     returns : pandas.DataFrame
         DataFrame of stock returns
+    tickers_info : dict
+        Dictionary mapping ticker symbols to full company names
+    regimes : array-like, optional
+        Regime classifications from detect_market_regimes
+    clusters : array-like, optional
+        Cluster assignments from PCA clustering
     threshold : float, optional
         Correlation threshold for network edges
         
     Returns:
     -------
     plotly.graph_objects.Figure
-        Interactive network visualization
+        Enhanced interactive network visualization
     """
+    import plotly.graph_objects as go
+    import networkx as nx
+    import numpy as np
     from data_navigation import build_correlation_network
     
     # Build correlation network
     G = build_correlation_network(returns, threshold)
     
     # Get positions using spring layout
-    pos = nx.spring_layout(G, k=0.5)
+    pos = nx.spring_layout(G, k=0.5, seed=42)
     
-    # Create node trace
+    # Create lists to hold node information
     node_x = []
     node_y = []
+    node_text = []
+    node_colors = []
+    color_by = 'default'
+    
+    # Set colors based on available data
+    if clusters is not None:
+        color_by = 'clusters'
+        # Create a mapping from ticker to cluster
+        ticker_to_cluster = {ticker: cluster for ticker, cluster in zip(returns.columns, clusters)}
+        # Color palette for clusters
+        cluster_colors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52']
+    elif regimes is not None:
+        color_by = 'regimes'
+        # Calculate the most common regime for each stock
+        ticker_regimes = {}
+        for i, ticker in enumerate(returns.columns):
+            # Create a binary mask for when this stock has high absolute returns
+            high_return_mask = (returns[ticker].abs() > returns[ticker].abs().quantile(0.8)).values
+            # Get regimes during these high return periods
+            if np.any(high_return_mask):
+                ticker_regimes[ticker] = np.bincount(regimes[high_return_mask]).argmax()
+            else:
+                ticker_regimes[ticker] = 0
+        # Color palette for regimes
+        regime_colors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A']
     
     for node in G.nodes():
         x, y = pos[node]
         node_x.append(x)
         node_y.append(y)
+        
+        # Add full company name to hover text if available
+        if node in tickers_info:
+            full_name = tickers_info[node]
+            node_text.append(f"{node}: {full_name}")
+        else:
+            node_text.append(node)
+            
+        # Assign colors based on clusters or regimes
+        if color_by == 'clusters':
+            cluster = ticker_to_cluster.get(node, 0)
+            node_colors.append(cluster_colors[cluster % len(cluster_colors)])
+        elif color_by == 'regimes':
+            regime = ticker_regimes.get(node, 0)
+            node_colors.append(regime_colors[regime % len(regime_colors)])
+        else:
+            node_colors.append('#636EFA')  # Default color
     
+    # Create node trace
     node_trace = go.Scatter(
         x=node_x, y=node_y,
         mode='markers+text',
         text=list(G.nodes()),
         textposition='top center',
         marker=dict(
-            size=10,
-            color='blue',
+            size=15,
+            color=node_colors,
             line=dict(width=1, color='black')
         ),
+        hovertext=node_text,
         hoverinfo='text'
     )
     
@@ -1209,13 +1263,17 @@ def create_interactive_network(returns, threshold=0.34):
         edge_y.extend([y0, y1, None])
         
         weight = G.get_edge_data(edge[0], edge[1]).get('weight', 0)
-        edge_text.append(f"{edge[0]} - {edge[1]}: Correlation = {weight:.3f}")
+        # Add full company names to edge text if available
+        name0 = tickers_info.get(edge[0], edge[0])
+        name1 = tickers_info.get(edge[1], edge[1])
+        edge_text.append(f"{edge[0]} ({name0}) - {edge[1]} ({name1}): Correlation = {weight:.3f}")
     
     edge_trace = go.Scatter(
         x=edge_x, y=edge_y,
         mode='lines',
-        line=dict(width=1, color='gray'),
+        line=dict(width=1, color='rgba(128, 128, 128, 0.7)'),
         hoverinfo='text',
+        hovertext=edge_text,
         text=edge_text
     )
     
@@ -1223,15 +1281,136 @@ def create_interactive_network(returns, threshold=0.34):
     fig = go.Figure(data=[edge_trace, node_trace])
     
     # Update layout
+    title_text = f'Stock Correlation Network (Corr > {threshold:.2f})'
+    if color_by == 'clusters':
+        title_text += ' - Colored by PCA Clusters'
+    elif color_by == 'regimes':
+        title_text += ' - Colored by Market Regimes'
+        
     fig.update_layout(
-        title=f'Stock Correlation Network (Corr > {threshold:.2f})',
+        title=title_text,
         showlegend=False,
         hovermode='closest',
         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-        height=700,
-        width=700,
-        template='plotly_white'
+        height=800,
+        width=800,
+        template='plotly_white',
+        plot_bgcolor='rgba(0,0,0,0)'
+    )
+    
+    return fig
+
+def create_interactive_pca_biplot(principal_components, factor_loadings, tickers):
+    """
+    Create an interactive biplot showing both the principal components and factor loadings using Plotly.
+    
+    Parameters:
+    ----------
+    principal_components : array-like
+        Principal components from PCA
+    factor_loadings : array-like
+        Factor loadings from PCA
+    tickers : list
+        List of ticker symbols
+        
+    Returns:
+    -------
+    plotly.graph_objects.Figure
+        Interactive PCA biplot
+    """
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+    import numpy as np
+    
+    # Use only the first two principal components
+    pc1 = principal_components[:, 0]
+    pc2 = principal_components[:, 1]
+    
+    # Scale the factor loadings for visualization
+    scale = np.abs(principal_components).max() / np.abs(factor_loadings).max() * 0.7
+    
+    # Create the figure
+    fig = go.Figure()
+    
+    # Add scatter plot for principal components
+    fig.add_trace(
+        go.Scatter(
+            x=pc1, 
+            y=pc2,
+            mode='markers',
+            marker=dict(
+                size=8,
+                color='blue',
+                opacity=0.5
+            ),
+            name='Data Points'
+        )
+    )
+    
+    # Add vectors for factor loadings
+    for i, ticker in enumerate(tickers):
+        fig.add_trace(
+            go.Scatter(
+                x=[0, factor_loadings[0, i] * scale],
+                y=[0, factor_loadings[1, i] * scale],
+                mode='lines+text',
+                line=dict(color='red', width=2),
+                text=['', ticker],
+                textposition='top center',
+                name=ticker
+            )
+        )
+    
+    # Add a circle to represent correlations of 1
+    theta = np.linspace(0, 2*np.pi, 100)
+    x_circle = np.cos(theta)
+    y_circle = np.sin(theta)
+    
+    fig.add_trace(
+        go.Scatter(
+            x=x_circle,
+            y=y_circle,
+            mode='lines',
+            line=dict(color='gray', width=1, dash='dash'),
+            name='Unit Circle'
+        )
+    )
+    
+    # Update layout
+    fig.update_layout(
+        title="PCA Biplot: Stocks and Principal Components",
+        xaxis=dict(
+            title="Principal Component 1",
+            zeroline=True,
+            zerolinewidth=1,
+            zerolinecolor='black'
+        ),
+        yaxis=dict(
+            title="Principal Component 2",
+            zeroline=True,
+            zerolinewidth=1,
+            zerolinecolor='black'
+        ),
+        showlegend=False,
+        height=800,
+        width=800,
+        template="plotly_white"
+    )
+    
+    # Add axis lines
+    fig.add_shape(
+        type="line",
+        x0=-scale, x1=scale,
+        y0=0, y1=0,
+        line=dict(color="black", width=1)
+    )
+    
+    fig.add_shape(
+        type="line", 
+        x0=0, x1=0,
+        y0=-scale, y1=scale,
+        line=dict(color="black", width=1)
     )
     
     return fig

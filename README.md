@@ -154,7 +154,7 @@ Explore the data interactively through our web application. The app allows you t
    - Compare risk metrics across different portfolios
    - Monitor real-time stock data and historical patterns
 
-[Click here to access the web](https://example-app-url.com)
+[Click here to access the web](https://bellayqian.github.io/stock_dashboard/)
 
 ---
 

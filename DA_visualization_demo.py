@@ -21,6 +21,83 @@ from data_analysis_visualization import *
 # Set plot style
 plt.style.use('ggplot')
 
+# Add function to get ticker information
+def get_ticker_info():
+    """
+    Get mapping of ticker symbols to full company names.
+    
+    Returns:
+    -------
+    dict
+        Dictionary mapping ticker symbols to company names
+    """
+    # This is a placeholder - in a real implementation,
+    # this would load from a database or API
+    # For demonstration, we'll create a sample mapping
+    ticker_info = {
+        # Technology
+        'AAPL': 'Apple Inc.',
+        'MSFT': 'Microsoft Corporation',
+        'AMZN': 'Amazon.com Inc.',
+        'GOOGL': 'Alphabet Inc. (Google)',
+        'META': 'Meta Platforms Inc.',
+        'NVDA': 'NVIDIA Corporation',
+        'TSLA': 'Tesla Inc.',
+        'INTC': 'Intel Corporation',
+        'AMD': 'Advanced Micro Devices Inc.',
+        'ORCL': 'Oracle Corporation',
+        'CRM': 'Salesforce Inc.',
+        'CSCO': 'Cisco Systems Inc.',
+        'IBM': 'International Business Machines',
+        'ADBE': 'Adobe Inc.',
+        'NFLX': 'Netflix Inc.',
+        
+        # Financial
+        'JPM': 'JPMorgan Chase & Co.',
+        'BAC': 'Bank of America Corporation',
+        'WFC': 'Wells Fargo & Company',
+        'GS': 'Goldman Sachs Group Inc.',
+        'MS': 'Morgan Stanley',
+        'BLK': 'BlackRock Inc.',
+        'C': 'Citigroup Inc.',
+        'AXP': 'American Express Company',
+        'V': 'Visa Inc.',
+        'MA': 'Mastercard Incorporated',
+        
+        # Healthcare
+        'JNJ': 'Johnson & Johnson',
+        'PFE': 'Pfizer Inc.',
+        'MRK': 'Merck & Co. Inc.',
+        'UNH': 'UnitedHealth Group Inc.',
+        'ABBV': 'AbbVie Inc.',
+        'LLY': 'Eli Lilly and Company',
+        'BMY': 'Bristol-Myers Squibb Company',
+        'TMO': 'Thermo Fisher Scientific Inc.',
+        'ABT': 'Abbott Laboratories',
+        'MDT': 'Medtronic plc',
+        
+        # Consumer
+        'PG': 'Procter & Gamble Company',
+        'KO': 'The Coca-Cola Company',
+        'PEP': 'PepsiCo Inc.',
+        'WMT': 'Walmart Inc.',
+        'MCD': 'McDonald\'s Corporation',
+        'HD': 'The Home Depot Inc.',
+        'NKE': 'Nike Inc.',
+        'DIS': 'The Walt Disney Company',
+        'SBUX': 'Starbucks Corporation',
+        'COST': 'Costco Wholesale Corporation',
+        
+        # Energy & Industrial
+        'XOM': 'Exxon Mobil Corporation',
+        'CVX': 'Chevron Corporation',
+        'GE': 'General Electric Company',
+        'BA': 'The Boeing Company',
+        'CAT': 'Caterpillar Inc.'
+    }
+    
+    return ticker_info
+
 def run_pca_analysis(returns_data, output_dir=None):
     """
     Run PCA analysis and generate visualizations.
@@ -64,26 +141,43 @@ def run_pca_analysis(returns_data, output_dir=None):
     # Create visualizations
     print("\nGenerating PCA visualizations...")
     
-    # 1. PCA biplot (keeping this one)
+    # 1. Generate the static PCA biplot for backwards compatibility
     fig1 = plot_pca_biplot(principal_components, factor_loadings, tickers)
     if output_dir:
         fig1.savefig(os.path.join(output_dir, 'pca_biplot.png'))
     
-    # 2. PCA clustering plot (adding this one)
+    # 2. Create interactive PCA biplot (NEW)
+    fig_interactive_biplot = create_interactive_pca_biplot(principal_components, factor_loadings, tickers)
+    if output_dir:
+        fig_interactive_biplot.write_html(os.path.join(output_dir, 'interactive_pca_biplot.html'))
+    
+    # 3. PCA clustering plot
     fig2 = plot_pca_clustering(principal_components, factor_loadings, tickers)
     if output_dir:
         fig2.savefig(os.path.join(output_dir, 'pca_clustering.png'))
 
-    # 3. Interactive PCA clustering plot (adding this one)
+    # 4. Interactive PCA clustering plot
     fig3 = create_pca_clustering_plot(principal_components, factor_loadings, tickers)
     if output_dir:
         fig3.write_html(os.path.join(output_dir, 'interactive_pca_clustering.html'))
+    
+    # Create clusters for network visualization
+    from sklearn.cluster import KMeans
+    n_clusters = 3
+    
+    # Use factor loadings for the first two PCs to form clusters
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+    cluster_data = factor_loadings[:2, :].T  # Transpose to get (n_samples, n_features)
+    clusters = kmeans.fit_predict(cluster_data)
+    
+    print(f"\nCluster assignments: {clusters}")
 
     print("PCA analysis complete.")
     return {
         'principal_components': principal_components,
         'explained_variance_ratios': explained_variance_ratios,
-        'factor_loadings': factor_loadings
+        'factor_loadings': factor_loadings,
+        'clusters': clusters  # Return clusters for network visualization
     }
 
 def run_market_regime_analysis(returns_data, n_regimes=3, output_dir=None):
@@ -172,12 +266,12 @@ def run_risk_metrics_analysis(returns_data, output_dir=None):
     # Create visualizations
     print("\nGenerating risk metrics visualizations...")
     
-    # 1. Interactive risk metrics comparison (keeping this one)
+    # 1. Interactive risk metrics comparison
     fig1 = create_risk_metrics_comparison(returns_data, weights_list, labels)
     if output_dir:
         fig1.write_html(os.path.join(output_dir, 'interactive_risk_metrics_comparison.html'))
     
-    # 2. Interactive risk metrics heatmap (keeping this one)
+    # 2. Interactive risk metrics heatmap
     fig2 = create_risk_metrics_heatmap(returns_data, tickers)
     if output_dir:
         fig2.write_html(os.path.join(output_dir, 'interactive_risk_metrics_heatmap.html'))
@@ -189,14 +283,18 @@ def run_risk_metrics_analysis(returns_data, output_dir=None):
         'labels': labels
     }
 
-def run_network_analysis(returns_data, threshold=0.34, output_dir=None):
+def run_network_analysis(returns_data, regimes=None, clusters=None, threshold=0.34, output_dir=None):
     """
-    Run network analysis and generate visualizations.
+    Run enhanced network analysis and generate visualizations.
     
     Parameters:
     ----------
     returns_data : pandas.DataFrame
         DataFrame of stock returns
+    regimes : array-like, optional
+        Regime classifications from detect_market_regimes
+    clusters : array-like, optional
+        Cluster assignments from PCA clustering
     threshold : float, optional
         Correlation threshold for network
     output_dir : str, optional
@@ -204,17 +302,25 @@ def run_network_analysis(returns_data, threshold=0.34, output_dir=None):
     """
     print("\n=== Network Analysis ===")
     
-    # Create interactive network visualization
-    fig = create_interactive_network(returns_data, threshold)
+    # Get ticker information (full company names)
+    tickers_info = get_ticker_info()
+    
+    # Create enhanced interactive network visualization
+    fig = create_enhanced_network(returns_data, tickers_info, regimes, clusters, threshold)
     if output_dir:
         fig.write_html(os.path.join(output_dir, 'interactive_network.html'))
+    
+    # Also create the original network visualization for backwards compatibility
+    original_fig = create_interactive_network(returns_data, threshold)
+    if output_dir:
+        original_fig.write_html(os.path.join(output_dir, 'interactive_network_original.html'))
     
     print("Network analysis complete.")
     return {}
 
 def main():
     """Main function to run the analysis"""
-    print("Starting data analysis visualization demo...")
+    print("Starting enhanced data analysis visualization demo...")
     
     # Create output directory if it doesn't exist
     output_dir = 'output_figures'
@@ -232,15 +338,23 @@ def main():
     
     # Run PCA analysis
     pca_results = run_pca_analysis(returns_data, output_dir)
+    clusters = pca_results['clusters']
     
     # Run market regime analysis
     regime_results = run_market_regime_analysis(returns_data, n_regimes=3, output_dir=output_dir)
+    regimes = regime_results['regimes']
     
     # Run risk metrics analysis
     risk_results = run_risk_metrics_analysis(returns_data, output_dir)
     
-    # Run network analysis
-    network_results = run_network_analysis(returns_data, threshold=0.34, output_dir=output_dir)
+    # Run enhanced network analysis with regime and cluster information
+    network_results = run_network_analysis(
+        returns_data, 
+        regimes=regimes, 
+        clusters=clusters, 
+        threshold=0.34, 
+        output_dir=output_dir
+    )
     
     print("\nAll analyses complete. Output figures saved to:", output_dir)
     
